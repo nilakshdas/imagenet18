@@ -16,9 +16,14 @@ import pickle
 from tqdm import tqdm
 from dist_utils import env_world_size, env_rank
 
-def get_loaders(traindir, valdir, sz, bs, fp16=True, val_bs=None, workers=8, rect_val=False, min_scale=0.08, distributed=False):
+from preprocessing import JPEGCompress
+
+
+def get_loaders(traindir, valdir, sz, bs, fp16=True, val_bs=None, workers=8,
+                rect_val=False, min_scale=0.08, jpeg_quality=80, distributed=False):
     val_bs = val_bs or bs
     train_tfms = [
+            JPEGCompress(jpeg_quality),
             transforms.RandomResizedCrop(sz, scale=(min_scale, 1.0)),
             transforms.RandomHorizontalFlip()
     ]
@@ -30,7 +35,10 @@ def get_loaders(traindir, valdir, sz, bs, fp16=True, val_bs=None, workers=8, rec
         num_workers=workers, pin_memory=True, collate_fn=fast_collate, 
         sampler=train_sampler)
 
-    val_dataset, val_sampler = create_validation_set(valdir, val_bs, sz, rect_val=rect_val, distributed=distributed)
+    val_dataset, val_sampler = create_validation_set(valdir, val_bs, sz,
+                                                     rect_val=rect_val,
+                                                     jpeg_quality=jpeg_quality,
+                                                     distributed=distributed)
     val_loader = torch.utils.data.DataLoader(
         val_dataset,
         num_workers=workers, pin_memory=True, collate_fn=fast_collate, 
@@ -42,18 +50,18 @@ def get_loaders(traindir, valdir, sz, bs, fp16=True, val_bs=None, workers=8, rec
     return train_loader, val_loader, train_sampler, val_sampler
 
 
-def create_validation_set(valdir, batch_size, target_size, rect_val, distributed):
+def create_validation_set(valdir, batch_size, target_size, rect_val, jpeg_quality, distributed):
     if rect_val:
         idx_ar_sorted = sort_ar(valdir)
         idx_sorted, _ = zip(*idx_ar_sorted)
         idx2ar = map_idx2ar(idx_ar_sorted, batch_size)
 
-        ar_tfms = [transforms.Resize(int(target_size*1.14)), CropArTfm(idx2ar, target_size)]
+        ar_tfms = [JPEGCompress(jpeg_quality), transforms.Resize(int(target_size*1.14)), CropArTfm(idx2ar, target_size)]
         val_dataset = ValDataset(valdir, transform=ar_tfms)
         val_sampler = DistValSampler(idx_sorted, batch_size=batch_size, distributed=distributed)
         return val_dataset, val_sampler
     
-    val_tfms = [transforms.Resize(int(target_size*1.14)), transforms.CenterCrop(target_size)]
+    val_tfms = [JPEGCompress(jpeg_quality), transforms.Resize(int(target_size*1.14)), transforms.CenterCrop(target_size)]
     val_dataset = datasets.ImageFolder(valdir, transforms.Compose(val_tfms))
     val_sampler = DistValSampler(list(range(len(val_dataset))), batch_size=batch_size, distributed=distributed)
     return val_dataset, val_sampler

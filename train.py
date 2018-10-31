@@ -14,6 +14,8 @@ parser.add_argument('--name', type=str, default='imagenet',
                     help="name of the current run, used for machine naming and tensorboard visualization")
 parser.add_argument('--machines', type=int, default=16,
                     help="how many machines to use")
+parser.add_argument('--jpeg-quality', type=int, default=80, dest='jpeg_quality',
+                    help="quality of jpeg compression to be applied while training")
 args = parser.parse_args()
 
 # 109:12 to 93.00
@@ -179,6 +181,8 @@ def main():
   ]
 
   params = ['--phases', schedules[args.machines]]
+  for phase in params[1]:
+      phase['jpeg_quality'] = args.jpeg_quality
   training_params = default_params + params
   training_params = ' '.join(map(format_params, training_params))
 

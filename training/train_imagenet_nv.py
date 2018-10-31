@@ -319,6 +319,7 @@ class DataManager():
         
     def preload_phase_data(self, phases):
         for phase in phases:
+            assert 'jpeg_quality' in phase, 'jpeg_quality missing in phase'
             if not phase.get('keep_dl', False):
                 self.expand_directories(phase)
                 phase['data'] = self.preload_data(**phase)
